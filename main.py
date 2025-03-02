@@ -6,13 +6,10 @@ from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from flask import Flask, request, abort
-from dotenv import load_dotenv
 from datetime import datetime
 import asyncio
 
 # ============= CONFIGURAÇÕES INICIAIS =============
-load_dotenv()
-
 # Configuração de Logs
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,7 +23,7 @@ class Config:
     INSTAGRAM = "https://www.instagram.com/lulupriminha"  # Instagram
     SUPPORT_BOT = "@brunaluizahot"  # Botão de suporte para comprovantes
     BOT_USERNAME = "@BrunaLuiza_Bot"  # Remarketing e promoções
-    WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://brunaluiza-bot.onrender.com/webhook")  # Default pro Render
+    WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://brunaluiza-bot.onrender.com/webhook")  # URL do Render
     PIX_NUMBER = "31984952759"  # Sua chave Pix
     PIX_NAME = "Bruna Luiza Barbosa"  # Nome associado ao Pix
 
@@ -36,7 +33,6 @@ dp = Dispatcher()
 
 # Inicialização do Flask
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "default-secret-key")
 
 # ============= BANCO DE DADOS EM MEMÓRIA =============
 class Database:
@@ -50,11 +46,11 @@ class Database:
     packs = {
         "basic": {"name": "PACK BÁSICO", "price": 29.90, "description": "3 fotos + 3 vídeos de me pegar de jeito 😏"},
         "advanced": {"name": "PACK AVANÇADO", "price": 59.90, "description": "5 fotos + 5 vídeos com meus brinquedos favoritos 🍆💦"},
-        "premium": {"name": "PACK PREMIUM", "price": 99.90, "description": "10 fotos + 10 vídeos com gemidos que você não esquece 🥵"}
+        "premium": {"name": "PACK PREMIUM", "price": 99.90, "description": "10 fotos + 10 quartos com gemidos que você não esquece 🥵"}
     }
     
-    users = {}  # Armazena interações
-    subscriptions = {}  # Armazena compras
+    users = {}
+    subscriptions = {}
 
 # ============= TELAS DO BOT =============
 class Keyboards:
@@ -158,7 +154,6 @@ async def handle_plan_selection(callback: types.CallbackQuery):
     logger.info(f"Plano selecionado por {callback.from_user.id}: {callback.data}")
     plan_id = callback.data.split(":")[1]
     plan = Database.plans.get(plan_id)
-    
     payment_info = (
         f"💎 *PLANO {plan['name'].upper()}*\n\n"
         f"Valor: R${plan['price']}\n"
@@ -169,5 +164,101 @@ async def handle_plan_selection(callback: types.CallbackQuery):
         f"*Nome:* {Config.PIX_NAME}`\n\n"
         "Pagou? Clica em 'PAGAMENTO FEITO' e manda o comprovante pro suporte!"
     )
-    
-    await callback.message.answe
+    await callback.message.answer(payment_info, reply_markup=Keyboards.confirmation_buttons())
+    await callback.answer()
+
+@dp.callback_query(lambda callback: callback.data.startswith("pack:"))
+async def handle_pack_selection(callback: types.CallbackQuery):
+    logger.info(f"Pack selecionado por {callback.from_user.id}: {callback.data}")
+    pack_id = callback.data.split(":")[1]
+    pack = Database.packs.get(pack_id)
+    payment_info = (
+        f"🔥 *{pack['name'].upper()}*\n\n"
+        f"Valor: R${pack['price']}\n"
+        f"Descrição: {pack['description']}\n\n"
+        "⚠️ *FAÇA O PIX AGORA:*\n"
+        f"*Chave:* `{Config.PIX_NUMBER}`\n"
+        f"*Nome:* {Config.PIX_NAME}`\n\n"
+        "Pagou? Clica em 'PAGAMENTO FEITO' e manda o comprovante pro suporte!"
+    )
+    await callback.message.answer(payment_info, reply_markup=Keyboards.confirmation_buttons())
+    await callback.answer()
+
+@dp.callback_query(lambda callback: callback.data == "confirm_payment")
+async def confirm_payment(callback: types.CallbackQuery):
+    logger.info(f"Confirmação de pagamento por {callback.from_user.id}")
+    await callback.message.answer(
+        f"📸 *Beleza, agora é comigo!*\n"
+        f"Manda o comprovante pro suporte [{Config.SUPPORT_BOT}](https://t.me/{Config.SUPPORT_BOT}) que eu libero seu acesso na hora! 🔥"
+    )
+    await callback.answer()
+
+@dp.callback_query(lambda callback: callback.data == "cancel")
+async def cancel_payment(callback: types.CallbackQuery):
+    logger.info(f"Cancelamento por {callback.from_user.id}")
+    await callback.message.answer(
+        "❌ *Sem problemas, se mudar de ideia é só voltar aqui!*\n"
+        f"Quer tentar de novo? Fala comigo: [{Config.BOT_USERNAME}](https://t.me/{Config.BOT_USERNAME}) 😏"
+    )
+    await callback.answer()
+
+@dp.message(lambda message: message.photo or message.document)
+async def handle_proof(message: types.Message):
+    logger.info(f"Comprovante recebido de {message.from_user.id}")
+    user_id = message.from_user.id
+    await message.answer(
+        "💦 *Comprovante recebido!*\n"
+        f"Vou verificar rapidinho e liberar tudo pra você. Qualquer coisa, fala com o suporte: [{Config.SUPPORT_BOT}](https://t.me/{Config.SUPPORT_BOT})!"
+    )
+    await bot.send_message(
+        Config.ADMIN_ID,
+        f"✅ Novo pagamento de {message.from_user.first_name} (ID: {user_id})"
+    )
+    await bot.forward_message(Config.ADMIN_ID, message.from_user.id, message.message_id)
+
+# ============= PROMOÇÃO AUTOMÁTICA =============
+async def send_promo():
+    while True:
+        try:
+            await bot.send_message(
+                Config.PREVIEW_GROUP.split("https://t.me/")[1],
+                f"⚡ *HOJE TEM PROMO MALUCA: 50% OFF NO PACK BÁSICO!* Só R$14,95.\n"
+                f"Corre pra pegar o seu antes que acabe: [{Config.BOT_USERNAME}](https://t.me/{Config.BOT_USERNAME}) 🔥",
+                parse_mode=ParseMode.MARKDOWN
+            )
+            logger.info("Promoção enviada ao grupo de prévias")
+        except Exception as e:
+            logger.error(f"Erro ao enviar promoção: {str(e)}")
+        await asyncio.sleep(86400)  # 24 horas
+
+# ============= CONFIGURAÇÃO WEBHOOK =============
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    logger.info("Requisição recebida no webhook")
+    if request.headers.get("content-type") == "application/json":
+        update = types.Update(**request.get_json())
+        asyncio.run_coroutine_threadsafe(dp.feed_update(bot, update), loop)
+        return "OK"
+    else:
+        logger.warning("Requisição inválida no webhook")
+        abort(403)
+
+async def set_webhook():
+    try:
+        await bot.set_webhook(Config.WEBHOOK_URL)
+        logger.info(f"Webhook configurado com sucesso: {Config.WEBHOOK_URL}")
+    except Exception as e:
+        logger.error(f"Erro ao configurar webhook: {str(e)}")
+
+async def startup():
+    await set_webhook()
+    asyncio.create_task(send_promo())
+
+# ============= INICIALIZAÇÃO =============
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(startup())
+    port = int(os.environ.get("PORT", 5000))
+    logger.info(f"Iniciando Flask na porta {port}")
+    app.run(host="0.0.0.0", port=port)
