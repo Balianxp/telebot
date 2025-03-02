@@ -54,7 +54,7 @@ def webhook():
     logger.info("Requisição recebida no webhook")
     if request.headers.get("content-type") == "application/json":
         update = types.Update(**request.get_json())
-        asyncio.create_task(dp.feed_update(bot, update))  # Cria uma tarefa assíncrona
+        asyncio.run_coroutine_threadsafe(dp.feed_update(bot, update), asyncio.get_event_loop())
         return "OK"
     else:
         logger.warning("Requisição inválida no webhook")
@@ -66,18 +66,10 @@ async def set_webhook():
     await bot.set_webhook(Config.WEBHOOK_URL)
     logger.info(f"Webhook configurado: {Config.WEBHOOK_URL}")
 
-# Função principal assíncrona
-async def main():
-    await set_webhook()
-    port = int(os.environ.get("PORT", 5000))
-    logger.info(f"Iniciando Flask na porta {port}")
-    from threading import Thread
-    def run_flask():
-        app.run(host="0.0.0.0", port=port)
-    flask_thread = Thread(target=run_flask)
-    flask_thread.start()
-    await dp.start_polling(bot)  # Mantém o Dispatcher ativo
-
 # Inicialização
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(set_webhook())
+    port = int(os.environ.get("PORT", 5000))
+    logger.info(f"Iniciando Flask na porta {port}")
+    app.run(host="0.0.0.0", port=port)
