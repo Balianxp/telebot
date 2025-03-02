@@ -325,7 +325,7 @@ async def check_expirations():
 @app.route("/webhook", methods=["POST"])
 def webhook():
     logger.info("Requisição recebida no webhook")
-    if request.headers.get("content-type") == "application/json"):
+    if request.headers.get("content-type") == "application/json":
         update = types.Update(**request.get_json())
         loop.run_until_complete(dp.feed_update(bot, update))
         return "OK"
