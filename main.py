@@ -54,7 +54,10 @@ def webhook():
     logger.info("Requisição recebida no webhook")
     if request.headers.get("content-type") == "application/json":
         update = types.Update(**request.get_json())
-        asyncio.run_coroutine_threadsafe(dp.feed_update(bot, update), asyncio.get_event_loop())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(dp.feed_update(bot, update))
+        loop.close()
         return "OK"
     else:
         logger.warning("Requisição inválida no webhook")
