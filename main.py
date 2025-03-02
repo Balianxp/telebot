@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+import asyncio
 
 # Configuração de Logs
 logging.basicConfig(level=logging.INFO)
@@ -47,13 +48,13 @@ async def cmd_start(message: types.Message):
     except Exception as e:
         logger.error(f"Erro ao responder /start: {str(e)}")
 
-# Webhook
+# Webhook (síncrono)
 @app.route("/webhook", methods=["POST"])
-async def webhook():
+def webhook():
     logger.info("Requisição recebida no webhook")
     if request.headers.get("content-type") == "application/json":
         update = types.Update(**request.get_json())
-        await dp.feed_update(bot, update)
+        asyncio.run_coroutine_threadsafe(dp.feed_update(bot, update), loop)
         return "OK"
     else:
         logger.warning("Requisição inválida no webhook")
@@ -67,7 +68,6 @@ async def set_webhook():
 
 # Inicialização
 if __name__ == "__main__":
-    import asyncio
     loop = asyncio.get_event_loop()
     loop.run_until_complete(set_webhook())
     port = int(os.environ.get("PORT", 5000))
