@@ -1,6 +1,6 @@
 import os
 import logging
-from aiogram import Bot, Dispatcher, types, executor
+from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
@@ -27,7 +27,7 @@ class Config:
 
 # Inicialização
 bot = Bot(token=Config.TOKEN, parse_mode=ParseMode.MARKDOWN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
 
 # Banco de Dados em Memória
 class Database:
@@ -317,19 +317,19 @@ async def check_expirations():
         await asyncio.sleep(3600)  # Verifica a cada hora
 
 # Configuração do Webhook na Inicialização
-async def on_startup(_):
+async def on_startup():
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(Config.WEBHOOK_URL)
     logger.info(f"Webhook configurado: {Config.WEBHOOK_URL}")
     asyncio.create_task(check_expirations())
 
+# Inicialização
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    executor.start_webhook(
-        dispatcher=dp,
-        webhook_path="/webhook",
+    dp.run_webhook(
+        listen="0.0.0.0",
+        port=port,
+        path="/webhook",
         on_startup=on_startup,
-        skip_updates=True,
-        host="0.0.0.0",
-        port=port
+        skip_updates=True
     )
