@@ -1,14 +1,12 @@
 import os
 import logging
-from flask import Flask, request
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, executor
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from datetime import datetime, timedelta
 import asyncio
-import threading
 
 # Configuração de Logs
 logging.basicConfig(level=logging.INFO)
@@ -28,11 +26,8 @@ class Config:
     PIX_NAME = "Bruna Luiza Barbosa"
 
 # Inicialização
-app = Flask(__name__)
 bot = Bot(token=Config.TOKEN, parse_mode=ParseMode.MARKDOWN)
-dp = Dispatcher()
-loop = asyncio.get_event_loop()
-asyncio.set_event_loop(loop)
+dp = Dispatcher(bot)
 
 # Banco de Dados em Memória
 class Database:
@@ -321,27 +316,20 @@ async def check_expirations():
                 )
         await asyncio.sleep(3600)  # Verifica a cada hora
 
-# Webhook
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    logger.info("Requisição recebida no webhook")
-    if request.headers.get("content-type") == "application/json":
-        update = types.Update(**request.get_json())
-        asyncio.run_coroutine_threadsafe(dp.feed_update(bot, update), loop)
-        return "OK"
-    else:
-        logger.warning("Requisição inválida no webhook")
-        return "", 403
-
 # Configuração do Webhook na Inicialização
-async def set_webhook():
+async def on_startup(_):
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(Config.WEBHOOK_URL)
     logger.info(f"Webhook configurado: {Config.WEBHOOK_URL}")
+    asyncio.create_task(check_expirations())
 
 if __name__ == "__main__":
-    asyncio.run(set_webhook())
-    threading.Thread(target=lambda: loop.run_until_complete(check_expirations())).start()
-    port = int(os.environ.get("PORT", 5000))
-    logger.info(f"Iniciando Flask na porta {port}")
-    app.run(host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", 10000))
+    executor.start_webhook(
+        dispatcher=dp,
+        webhook_path="/webhook",
+        on_startup=on_startup,
+        skip_updates=True,
+        host="0.0.0.0",
+        port=port
+    )
