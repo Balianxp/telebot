@@ -31,7 +31,7 @@ class Config:
 app = Flask(__name__)
 bot = Bot(token=Config.TOKEN, parse_mode=ParseMode.MARKDOWN)
 dp = Dispatcher()
-loop = asyncio.new_event_loop()
+loop = asyncio.get_event_loop()
 asyncio.set_event_loop(loop)
 
 # Banco de Dados em Memória
@@ -325,13 +325,9 @@ async def check_expirations():
 @app.route("/webhook", methods=["POST"])
 def webhook():
     logger.info("Requisição recebida no webhook")
-    if request.headers.get("content-type") == "application/json":
+    if request.headers.get("content-type") == "application/json"):
         update = types.Update(**request.get_json())
-        # Usa um novo loop para cada requisição
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         loop.run_until_complete(dp.feed_update(bot, update))
-        loop.close()
         return "OK"
     else:
         logger.warning("Requisição inválida no webhook")
@@ -343,16 +339,9 @@ async def set_webhook():
     await bot.set_webhook(Config.WEBHOOK_URL)
     logger.info(f"Webhook configurado: {Config.WEBHOOK_URL}")
 
-# Inicialização
 if __name__ == "__main__":
-    # Configura o webhook
     asyncio.run(set_webhook())
-    # Inicia o Flask em uma thread separada
+    threading.Thread(target=lambda: loop.run_until_complete(check_expirations())).start()
     port = int(os.environ.get("PORT", 5000))
     logger.info(f"Iniciando Flask na porta {port}")
-    def run_flask():
-        app.run(host="0.0.0.0", port=port)
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.start()
-    # Inicia a verificação de expirações em uma tarefa separada
-    loop.run_until_complete(check_expirations())
+    app.run(host="0.0.0.0", port=port)
