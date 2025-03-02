@@ -26,7 +26,7 @@ class Config:
     INSTAGRAM = "https://www.instagram.com/lulupriminha"  # Instagram
     SUPPORT_BOT = "@brunaluizahot"  # Botão de suporte para comprovantes
     BOT_USERNAME = "@BrunaLuiza_Bot"  # Remarketing e promoções
-    WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Será preenchido no Render
+    WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://brunaluiza-bot.onrender.com/webhook")  # Default pro Render
     PIX_NUMBER = "31984952759"  # Sua chave Pix
     PIX_NAME = "Bruna Luiza Barbosa"  # Nome associado ao Pix
 
@@ -112,18 +112,23 @@ class Keyboards:
 # ============= LÓGICA PRINCIPAL =============
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
+    logger.info(f"Recebido /start de {message.from_user.id}")
     user_id = message.from_user.id
     Database.users[user_id] = {"last_interaction": datetime.now()}
-    
-    await message.answer(
-        f"🔥 *Oi, {message.from_user.first_name}! Eu sou a Lulu, sua priminha mais safada!*\n\n"
-        "Você caiu no meu cantinho secreto pra ver o que ninguém mais vê 😈\n"
-        "Escolha agora ou vai ficar só na vontade:",
-        reply_markup=Keyboards.main_menu()
-    )
+    try:
+        await message.answer(
+            f"🔥 *Oi, {message.from_user.first_name}! Eu sou a Lulu, sua priminha mais safada!*\n\n"
+            "Você caiu no meu cantinho secreto pra ver o que ninguém mais vê 😈\n"
+            "Escolha agora ou vai ficar só na vontade:",
+            reply_markup=Keyboards.main_menu()
+        )
+        logger.info(f"Resposta enviada para {user_id}")
+    except Exception as e:
+        logger.error(f"Erro ao responder /start para {user_id}: {str(e)}")
 
 @dp.message(lambda message: message.text == "Planos VIP 💎")
 async def show_plans(message: types.Message):
+    logger.info(f"Planos VIP solicitado por {message.from_user.id}")
     await message.answer(
         "💎 *MEU VIP É PRA QUEM AGUENTA O CALOR*\n\n"
         "Quanto tempo você quer me ter todinha pra você?",
@@ -132,6 +137,7 @@ async def show_plans(message: types.Message):
 
 @dp.message(lambda message: message.text == "Packs Exclusivos 🔥")
 async def show_packs(message: types.Message):
+    logger.info(f"Packs solicitado por {message.from_user.id}")
     await message.answer(
         "🔥 *PACKS QUE VÃO TE DEIXAR LOUCO*\n\n"
         "Escolhe logo o que quer ver hoje:",
@@ -140,6 +146,7 @@ async def show_packs(message: types.Message):
 
 @dp.message(lambda message: message.text == "Conteúdos Grátis 🥵")
 async def show_free_content(message: types.Message):
+    logger.info(f"Conteúdos grátis solicitado por {message.from_user.id}")
     await message.answer(
         "🥵 *SÓ UM GOSTINHO DO QUE EU GUARDO...*\n\n"
         "Quer mais? Então vem comigo:",
@@ -148,6 +155,7 @@ async def show_free_content(message: types.Message):
 
 @dp.callback_query(lambda callback: callback.data.startswith("plan:"))
 async def handle_plan_selection(callback: types.CallbackQuery):
+    logger.info(f"Plano selecionado por {callback.from_user.id}: {callback.data}")
     plan_id = callback.data.split(":")[1]
     plan = Database.plans.get(plan_id)
     
@@ -162,92 +170,4 @@ async def handle_plan_selection(callback: types.CallbackQuery):
         "Pagou? Clica em 'PAGAMENTO FEITO' e manda o comprovante pro suporte!"
     )
     
-    await callback.message.answer(
-        payment_info,
-        reply_markup=Keyboards.confirmation_buttons()
-    )
-    await callback.answer()
-
-@dp.callback_query(lambda callback: callback.data.startswith("pack:"))
-async def handle_pack_selection(callback: types.CallbackQuery):
-    pack_id = callback.data.split(":")[1]
-    pack = Database.packs.get(pack_id)
-    
-    payment_info = (
-        f"🔥 *{pack['name'].upper()}*\n\n"
-        f"Valor: R${pack['price']}\n"
-        f"Descrição: {pack['description']}\n\n"
-        "⚠️ *FAÇA O PIX AGORA:*\n"
-        f"*Chave:* `{Config.PIX_NUMBER}`\n"
-        f"*Nome:* {Config.PIX_NAME}`\n\n"
-        "Pagou? Clica em 'PAGAMENTO FEITO' e manda o comprovante pro suporte!"
-    )
-    
-    await callback.message.answer(
-        payment_info,
-        reply_markup=Keyboards.confirmation_buttons()
-    )
-    await callback.answer()
-
-@dp.callback_query(lambda callback: callback.data == "confirm_payment")
-async def confirm_payment(callback: types.CallbackQuery):
-    await callback.message.answer(
-        f"📸 *Beleza, agora é comigo!*\n"
-        f"Manda o comprovante pro suporte [{Config.SUPPORT_BOT}](https://t.me/{Config.SUPPORT_BOT}) que eu libero seu acesso na hora! 🔥"
-    )
-    await callback.answer()
-
-@dp.callback_query(lambda callback: callback.data == "cancel")
-async def cancel_payment(callback: types.CallbackQuery):
-    await callback.message.answer(
-        "❌ *Sem problemas, se mudar de ideia é só voltar aqui!*\n"
-        f"Quer tentar de novo? Fala comigo: [{Config.BOT_USERNAME}](https://t.me/{Config.BOT_USERNAME}) 😏"
-    )
-    await callback.answer()
-
-@dp.message(lambda message: message.photo or message.document)
-async def handle_proof(message: types.Message):
-    user_id = message.from_user.id
-    await message.answer(
-        "💦 *Comprovante recebido!*\n"
-        f"Vou verificar rapidinho e liberar tudo pra você. Qualquer coisa, fala com o suporte: [{Config.SUPPORT_BOT}](https://t.me/{Config.SUPPORT_BOT})!"
-    )
-    # Notifica o admin com o comprovante
-    await bot.send_message(
-        Config.ADMIN_ID,
-        f"✅ Novo pagamento de {message.from_user.first_name} (ID: {user_id})"
-    )
-    await bot.forward_message(Config.ADMIN_ID, message.from_user.id, message.message_id)
-
-# ============= PROMOÇÃO AUTOMÁTICA (REMARKETING) =============
-async def send_promo():
-    while True:
-        await bot.send_message(
-            Config.PREVIEW_GROUP.split("https://t.me/")[1],
-            f"⚡ *HOJE TEM PROMO MALUCA: 50% OFF NO PACK BÁSICO!* Só R$14,95.\n"
-            f"Corre pra pegar o seu antes que acabe: [{Config.BOT_USERNAME}](https://t.me/{Config.BOT_USERNAME}) 🔥",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        await asyncio.sleep(86400)  # 24 horas
-
-# ============= CONFIGURAÇÃO WEBHOOK =============
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    if request.headers.get("content-type") == "application/json":
-        update = types.Update(**request.get_json())
-        asyncio.run_coroutine_threadsafe(dp.feed_update(bot, update), dp.loop)
-        return "OK"
-    else:
-        abort(403)
-
-async def on_startup():
-    await bot.set_webhook(Config.WEBHOOK_URL)
-    asyncio.create_task(send_promo())
-    logger.info("Bot iniciado e webhook configurado!")
-
-# ============= INICIALIZAÇÃO =============
-if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(on_startup())
-    dp.loop = loop
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    await callback.message.answe
