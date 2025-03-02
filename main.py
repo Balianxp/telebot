@@ -21,6 +21,7 @@ class Config:
 app = Flask(__name__)
 bot = Bot(token=Config.TOKEN, parse_mode=ParseMode.MARKDOWN)
 dp = Dispatcher()
+loop = asyncio.get_event_loop()
 
 # Teclado Principal
 def main_menu():
@@ -48,13 +49,13 @@ async def cmd_start(message: types.Message):
     except Exception as e:
         logger.error(f"Erro ao responder /start: {str(e)}")
 
-# Webhook (síncrono)
+# Webhook
 @app.route("/webhook", methods=["POST"])
 def webhook():
     logger.info("Requisição recebida no webhook")
     if request.headers.get("content-type") == "application/json":
         update = types.Update(**request.get_json())
-        asyncio.run_coroutine_threadsafe(dp.feed_update(bot, update), loop)
+        loop.run_until_complete(dp.feed_update(bot, update))
         return "OK"
     else:
         logger.warning("Requisição inválida no webhook")
@@ -68,8 +69,7 @@ async def set_webhook():
 
 # Inicialização
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(set_webhook())
+    asyncio.run(set_webhook())
     port = int(os.environ.get("PORT", 5000))
     logger.info(f"Iniciando Flask na porta {port}")
     app.run(host="0.0.0.0", port=port)
