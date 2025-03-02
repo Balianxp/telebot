@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Constantes
 class Config:
-    TOKEN = "7136668085:AAGWw9gIgQCZbb5bunB2ZawRsHY3Dt8BrPs"  # Token do bot
+    TOKEN = "7778588441:AAGlW5V6_CA9f6ZcYNM0MgSxXkt7ZVmBojs"  # Token do bot
     ADMIN_ID = 6206033489  # Seu ID no Telegram
     VIP_GROUP = "https://t.me/+qYv4s2q0AQBjYTVh"  # Grupo VIP
     PREVIEW_GROUP = "https://t.me/lulupriminha"   # Grupo de prévias
